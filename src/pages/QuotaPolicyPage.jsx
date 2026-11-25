@@ -4,8 +4,8 @@ import { Icon } from '../components/Icon.jsx';
 import { useAdminStore } from '../store/adminStore.mjs';
 
 const tiers = [
-  { key: 'guestLimit', icon: 'no_accounts', title: 'Khách vãng lai', subtitle: 'Không cần tài khoản', unit: 'lượt / bản cài', label: 'Tổng lượt thử', min: 0, max: 100, cycle: 'Không tự làm mới. Nhập 0 để tắt dùng thử.', features: ['Dịch thủ công bằng Lens', 'Model mặc định do server chọn'] },
-  { key: 'freeLimit', icon: 'person', title: 'Free Registered', subtitle: 'Tài khoản miễn phí', unit: 'lượt / ngày', label: 'Lượt mỗi ngày', min: 1, max: 10000, cycle: 'Làm mới lúc 00:00 giờ Việt Nam.', features: ['Dịch thủ công và tự động', 'Chọn model đang khả dụng'] },
+  { key: 'guestLimit', icon: 'no_accounts', title: 'Khách vãng lai', subtitle: 'Không cần tài khoản', unit: 'lượt / bản cài', label: 'Tổng lượt thử', min: 0, max: 100, cycle: 'Không tự làm mới. Nhập 0 để tắt dùng thử.', features: ['Dịch thủ công bằng Lens', 'Google Dịch và model AI được cấu hình bên dưới'] },
+  { key: 'freeLimit', icon: 'person', title: 'Free Registered', subtitle: 'Tài khoản miễn phí', unit: 'lượt / ngày', label: 'Lượt mỗi ngày', min: 1, max: 10000, cycle: 'Làm mới lúc 00:00 giờ Việt Nam.', features: ['Dịch thủ công bằng Lens', 'Google Dịch và model AI được cấu hình bên dưới'] },
   { icon: 'verified', title: 'Pro Gamer', subtitle: 'Gói thành viên', features: ['Hạn mức riêng', 'Quyền dùng model theo gói'] },
   { icon: 'diamond', title: 'VIP & Studio', subtitle: 'Gói cho studio và nhóm', features: ['Hạn mức riêng', 'Quyền dùng model theo gói'] },
 ];
@@ -16,7 +16,7 @@ const bonusRules = [
 ];
 const periods = { day: 'Ngày', week: 'Tuần', month: 'Tháng', installation: 'Lần cài', view: 'Lần xem' };
 const groupLabels = { guest: 'Khách vãng lai', free: 'Free Registered' };
-const fields = { 'bonusRules.checkIn': 'Điểm danh hằng ngày (đã ngừng)', guestLimit: 'Hạn mức Guest', freeLimit: 'Hạn mức Free', ...Object.fromEntries(bonusRules.map(([key, , title]) => [`bonusRules.${key}`, title])) };
+const fields = { 'bonusRules.checkIn': 'Điểm danh hằng ngày (đã ngừng)', guestLimit: 'Hạn mức Guest', freeLimit: 'Hạn mức Free', sharedAiModelId: 'Model AI cho Free và Guest', ...Object.fromEntries(bonusRules.map(([key, , title]) => [`bonusRules.${key}`, title])) };
 const formatTime = (value) => new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 const formatValue = (value, unit = 'xu') => value == null ? 'Chưa cấu hình' : typeof value === 'object'
   ? `${value.reward} ${unit}, tối đa ${value.maxClaims} lần / ${periods[value.period].toLowerCase()} · ${value.enabled ? 'Bật' : 'Tắt'}` : String(value);
@@ -35,18 +35,19 @@ export function QuotaPolicyPage({ isOwner }) {
   const saveBonus = useAdminStore((s) => s.saveBonusRule);
   const readAudit = useAdminStore((s) => s.getQuotaAudit);
   const readUsage = useAdminStore((s) => s.getQuotaUsage);
+  const listModels = useAdminStore((s) => s.listModels);
   const [overview, setOverview] = useState({});
   const [conflict, setConflict] = useState(false);
   const [auditVersion, setAuditVersion] = useState(0);
 
   useEffect(() => {
     let active = true;
-    for (const [key, load] of [['bonus', readBonus], ['usage', readUsage]]) {
+    for (const [key, load] of [['bonus', readBonus], ['usage', readUsage], ['models', async () => ({ items: await listModels() })]]) {
       load().then((data) => { if (active) setOverview((current) => ({ ...current, [key]: data })); })
         .catch((err) => { if (active) setOverview((current) => ({ ...current, [key]: { error: err.message } })); });
     }
     return () => { active = false; };
-  }, [readBonus, readUsage, attempt]);
+  }, [readBonus, readUsage, listModels, attempt]);
 
   useEffect(() => {
     let active = true;
@@ -104,7 +105,10 @@ export function QuotaPolicyPage({ isOwner }) {
     setError('');
     setFeedback(null);
     try {
-      const next = await save({ guestLimit: Number(draft.guestLimit), freeLimit: Number(draft.freeLimit), revision: policy.revision });
+      const next = await save({
+        guestLimit: Number(draft.guestLimit), freeLimit: Number(draft.freeLimit), revision: policy.revision,
+        ...(draft.sharedAiModelId !== policy.sharedAiModelId && { sharedAiModelId: draft.sharedAiModelId || null }),
+      });
       if (next) {
         setOverview((current) => current.bonus?.revision === policy.revision
           ? { ...current, bonus: { ...current.bonus, revision: next.revision } } : current);
@@ -129,7 +133,7 @@ export function QuotaPolicyPage({ isOwner }) {
     {((!policy && error) || Object.values(overview).some((section) => section?.error)) &&
       <button type="button" className="soft-button justify-self-start" disabled={!!saving} onClick={reload}>Tải lại dữ liệu</button>}
     {!policy && !error && <p role="status">Đang tải hạn mức…</p>}
-    {policy && <QuotaPolicyForm {...{ policy, draft, isOwner, saving, feedback }} blocked={conflict} onReload={reload} onSubmit={submit} onChange={(key, value) => {
+    {policy && <QuotaPolicyForm {...{ policy, draft, isOwner, saving, feedback }} models={overview.models} blocked={conflict} onReload={reload} onSubmit={submit} onChange={(key, value) => {
       setDraft({ ...draft, [key]: value });
       if (feedback?.key === 'limits') setFeedback(null);
     }} />}
@@ -148,7 +152,11 @@ function SaveFeedback({ feedback, blocked, onReload }) {
   </>;
 }
 
-export function QuotaPolicyForm({ policy, draft, isOwner, saving, blocked, feedback, onReload, onSubmit, onChange }) {
+export function QuotaPolicyForm({ policy, draft, isOwner, saving, blocked, feedback, models, onReload, onSubmit, onChange }) {
+  const eligibleModels = (models?.items ?? []).filter((model) => model.enabled && (model.coinPrice ?? 0) === 0);
+  const selectedId = draft.sharedAiModelId || '';
+  const selectedModel = eligibleModels.find((model) => model.id === selectedId);
+  const modelChanged = (policy.sharedAiModelId || '') !== selectedId;
   return <form onSubmit={onSubmit} className="grid gap-4" aria-labelledby="quota-tier-title">
       <div>
         <h2 id="quota-tier-title" className="font-heading text-xl font-bold">Ma trận gói tài khoản</h2>
@@ -173,10 +181,21 @@ export function QuotaPolicyForm({ policy, draft, isOwner, saving, blocked, feedb
           </label>}
         </section>)}
       </div>
+      <section className="grid gap-2 rounded-xl border border-line bg-white p-4">
+        <label htmlFor={isOwner ? 'shared-ai-model' : undefined} className="font-semibold">Model AI cho Free và Guest</label>
+        <p className="text-sm text-muted">Chỉ dịch thủ công khi có mạng. Dùng chung lượt với Google Dịch và không trừ xu.</p>
+        {models?.error && <p role="alert" className="text-sm text-danger">{models.error}</p>}
+        {!models && <p role="status" className="text-sm text-muted">Đang tải danh sách model…</p>}
+        {isOwner ? <select id="shared-ai-model" className="control" value={selectedId} disabled={!!saving || blocked || !models?.items} onChange={(event) => onChange('sharedAiModelId', event.target.value || null)}>
+          <option value="">Không dùng AI</option>
+          {selectedId && !selectedModel && <option value={selectedId} disabled>Model đã lưu hiện không khả dụng</option>}
+          {eligibleModels.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
+        </select> : models?.items && <p className="text-sm">{selectedModel?.name ?? (selectedId ? 'Model đã lưu hiện không khả dụng' : 'Không dùng AI')}</p>}
+      </section>
       {policy.updatedAt && <p className="text-sm text-muted">Cập nhật lần cuối: {new Date(policy.updatedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} · {policy.updatedBy}</p>}
       {isOwner && <div className="flex flex-wrap items-center justify-end gap-2">
         <SaveFeedback feedback={feedback?.key === 'limits' ? feedback : null} blocked={blocked && feedback?.key === 'limits'} onReload={onReload} />
-        <button type="submit" disabled={!!saving || blocked || tiers.every(({ key }) => !key || String(policy[key]) === String(draft[key]))} className="rounded-lg bg-primary px-4 py-2 font-semibold text-white hover:bg-accent disabled:opacity-50">
+        <button type="submit" disabled={!!saving || blocked || (!modelChanged && tiers.every(({ key }) => !key || String(policy[key]) === String(draft[key])))} className="rounded-lg bg-primary px-4 py-2 font-semibold text-white hover:bg-accent disabled:opacity-50">
           {saving === 'limits' ? 'Đang lưu…' : 'Áp dụng hạn mức'}
         </button>
       </div>}

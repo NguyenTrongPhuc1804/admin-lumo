@@ -113,7 +113,12 @@ test('điều hướng, thẻ model và hộp thoại hiển thị theo quyền'
     assert.doesNotMatch(failedBonus, /disabled="" aria-label="Lưu cấu hình Mã giới thiệu bạn bè"/);
     assert.match(failedBonus, /role="alert"[^>]*>Không lưu được cấu hình bonus/);
     for (const isOwner of [true, false]) {
-      const quotas = renderToStaticMarkup(createElement('div', null, createElement(QuotaPolicyForm, { isOwner, policy, draft: policy }), createElement(QuotaOverview, { isOwner, bonus: { rules: {} }, usage: { total: 0 } })));
+      const models = { items: [{ id: 'free-model', name: 'Model được chọn', enabled: true }, { id: 'paid-model', name: 'Model tính xu', enabled: true, coinPrice: 5 }, { id: 'off-model', name: 'Model đang tắt', enabled: false }] };
+      const quotas = renderToStaticMarkup(createElement('div', null, createElement(QuotaPolicyForm, { isOwner, policy, draft: { ...policy, sharedAiModelId: 'free-model' }, models }), createElement(QuotaOverview, { isOwner, bonus: { rules: {} }, usage: { total: 0 } })));
+      assert.match(quotas, /Model AI cho Free và Guest/);
+      assert.equal(quotas.includes('id="shared-ai-model"'), isOwner);
+      assert.match(quotas, /Model được chọn/);
+      assert.doesNotMatch(quotas, /Model tính xu|Model đang tắt/);
       assert.match(quotas, /Khách vãng lai/);
       assert.match(quotas, /Free Registered/);
       assert.match(quotas, /Pro Gamer/);
