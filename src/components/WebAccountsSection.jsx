@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { useAdminStore } from '../store/adminStore.mjs';
 
-export function WebAccountCreateButton({ disabled, onCreated }) {
+export function WebAccountCreateButton({ disabled }) {
   const createWebAccount = useAdminStore((state) => state.createWebAccount);
   const dialog = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -19,7 +20,9 @@ export function WebAccountCreateButton({ disabled, onCreated }) {
       const account = await createWebAccount(data.get('email'), data.get('password'), data.get('role'));
       if (account) {
         dialog.current?.close();
-        onCreated(account.email || data.get('email').trim());
+        toast.success(`Đã thêm tài khoản ${account.email || data.get('email').trim()}.`, {
+          description: 'Nếu không thấy tài khoản, hãy kiểm tra bộ lọc đang áp dụng.',
+        });
       }
     } catch (failure) {
       setError(failure.message);

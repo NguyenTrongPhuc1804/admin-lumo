@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { AdminShell } from './components/AdminShell.jsx';
 import { AccountsPage } from './pages/AccountsPage.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { ModelsPage } from './pages/ModelsPage.jsx';
+import { QuotaPolicyPage } from './pages/QuotaPolicyPage.jsx';
 import { useAdminStore } from './store/adminStore.mjs';
 
 export function App() {
@@ -10,8 +12,6 @@ export function App() {
   const checking = useAdminStore((state) => state.checking);
   const restoreSession = useAdminStore((state) => state.restoreSession);
   const logout = useAdminStore((state) => state.logout);
-  const [logoutError, setLogoutError] = useState('');
-
   const [hash, setHash] = useState(() => window.location.hash);
 
   useEffect(() => { restoreSession(); }, [restoreSession]);
@@ -24,18 +24,26 @@ export function App() {
   if (!session) return <LoginPage />;
 
   async function signOut() {
-    setLogoutError('');
-    try { await logout(); } catch (error) { setLogoutError(error.message); }
+    try {
+      await logout();
+      toast.success('Đã đăng xuất.');
+    } catch (error) {
+      toast.error('Đã thoát trên trình duyệt, nhưng chưa xác nhận được đăng xuất trên máy chủ.', { description: error.message });
+    }
   }
 
-  if (session.mustChangePassword) return <LoginPage key="change-password" mustChangePassword onLogout={signOut} logoutError={logoutError} />;
+  if (session.mustChangePassword) return <LoginPage key="change-password" mustChangePassword onLogout={signOut} />;
 
-  const canViewModels = session.role === 'owner' || session.role === 'admin';
-  const page = canViewModels && hash === '#models' ? 'models' : 'accounts';
+  const canViewSettings = session.role === 'owner' || session.role === 'admin';
+  const isOwner = session.role === 'owner';
+  const requestedPage = hash.slice(1);
+  const page = canViewSettings && ['models', 'quotas'].includes(requestedPage) ? requestedPage : 'accounts';
 
   return (
-    <AdminShell username={session.username} onLogout={signOut} page={page} canViewModels={canViewModels}>
-      {page === 'models' ? <ModelsPage key={`${session.username}:${session.role}`} isOwner={session.role === 'owner'} logoutError={logoutError} /> : <AccountsPage logoutError={logoutError} />}
+    <AdminShell username={session.username} onLogout={signOut} page={page} canViewSettings={canViewSettings}>
+      {page === 'models' && <ModelsPage key={`${session.username}:${session.role}`} isOwner={isOwner} />}
+      {page === 'quotas' && <QuotaPolicyPage key={`${session.username}:${session.role}`} isOwner={isOwner} />}
+      {page === 'accounts' && <AccountsPage />}
     </AdminShell>
   );
 }

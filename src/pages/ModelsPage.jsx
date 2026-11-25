@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Icon } from '../components/Icon.jsx';
 import { ModelCard } from '../components/ModelCard.jsx';
 import { ModelDialog } from '../components/ModelDialog.jsx';
 import { useAdminStore } from '../store/adminStore.mjs';
 
-export function ModelsPage({ isOwner, logoutError }) {
+export function ModelsPage({ isOwner }) {
   const listModels = useAdminStore((state) => state.listModels);
   const saveModel = useAdminStore((state) => state.saveModel);
   const deleteModel = useAdminStore((state) => state.deleteModel);
@@ -17,7 +18,6 @@ export function ModelsPage({ isOwner, logoutError }) {
   const [attempt, setAttempt] = useState(0);
   const [listError, setListError] = useState('');
   const [dialogError, setDialogError] = useState('');
-  const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState('');
   const [connections, setConnections] = useState({});
 
@@ -42,7 +42,6 @@ export function ModelsPage({ isOwner, logoutError }) {
   function openEditor(model) {
     setEditor({ model });
     setDialogError('');
-    setNotice(null);
   }
 
   async function checkConnection(model) {
@@ -50,9 +49,13 @@ export function ModelsPage({ isOwner, logoutError }) {
     setConnections((current) => ({ ...current, [model.id]: { status: 'checking' } }));
     let result;
     try {
-      if (await verifyModel(model)) result = { status: 'success' };
+      if (await verifyModel(model)) {
+        result = { status: 'success' };
+        toast.success(`Kết nối thành công: ${model.name}.`);
+      }
     } catch (error) {
       result = { status: 'error', message: error.message };
+      toast.error(`Kết nối thất bại: ${model.name}.`, { description: error.message });
     } finally {
       setConnections((current) => ({ ...current, [model.id]: result }));
     }
@@ -62,18 +65,17 @@ export function ModelsPage({ isOwner, logoutError }) {
     if (!isOwner || busy) return;
     const inDialog = action === 'save' || action === 'delete';
     setBusy(action);
-    setNotice(null);
     setDialogError('');
     try {
       if (action === 'delete') {
         if (!await deleteModel(model.id)) return;
         setModels((current) => current.filter((entry) => entry.id !== model.id));
-        setNotice({ text: `Đã xóa ${model.name}.` });
+        toast.success(`Đã xóa ${model.name}.`);
       } else {
         const updated = await saveModel(model?.id, action === 'toggle' ? { enabled: !model.enabled } : fields);
         if (!updated) return;
         setModels((current) => model ? current.map((entry) => entry.id === model.id ? updated : entry) : [...current, updated]);
-        setNotice({ text: `Đã lưu ${updated.name}.` });
+        toast.success(action === 'toggle' ? `Đã ${updated.enabled ? 'bật' : 'tắt'} ${updated.name}.` : `Đã lưu ${updated.name}.`);
       }
       if (inDialog) {
         if (model) setConnections((current) => ({ ...current, [model.id]: undefined }));
@@ -81,7 +83,7 @@ export function ModelsPage({ isOwner, logoutError }) {
       }
     } catch (error) {
       if (inDialog) setDialogError(error.message);
-      else setNotice({ text: `${model.name}: ${error.message}`, error: true });
+      else toast.error(`${model.name}: ${error.message}`);
     } finally {
       setBusy('');
     }
@@ -99,8 +101,6 @@ export function ModelsPage({ isOwner, logoutError }) {
         </div>
         {isOwner && <button type="button" className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 font-semibold text-white shadow-sm hover:bg-accent disabled:opacity-50" aria-haspopup="dialog" disabled={loading || !!listError || !!busy} onClick={() => openEditor(null)}><Icon name="add_circle" />Thêm Model AI</button>}
       </section>
-      {logoutError && <p role="alert" className="text-danger">{logoutError}</p>}
-      {notice && <p role={notice.error ? 'alert' : 'status'} className={`rounded-xl p-3 break-words ${notice.error ? 'bg-blush/50 text-danger' : 'bg-mint/30 text-primary'}`}>{notice.text}</p>}
       <section aria-labelledby="model-list-title" className="grid min-w-0 gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">

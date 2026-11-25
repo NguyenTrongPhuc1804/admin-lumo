@@ -123,13 +123,26 @@ test('admin vẫn khóa người dùng thường nhưng không quản lý tài k
   }, 0, apiUrl, sessionStorageStub());
   await store.getState().login('admin@example.com', 'password');
   const actions = store.getState();
-  await actions.changeStatus({ id: 'user-1', status: 'active' });
+  assert.equal(await actions.changeStatus({ id: 'user-1', status: 'active' }), true);
   assert.match(calls.at(-2), /\/users\/user-1\/block$/);
   const count = calls.length;
   await actions.changeWebAccountRole('web-1', 'viewer');
   await actions.resetWebAccountPassword('web-1', 'test-temporary');
   await actions.revokeWebAccount('web-1');
   assert.equal(calls.length, count);
+});
+
+test('lỗi khóa tài khoản được trả về mà không làm mất bảng tài khoản', async () => {
+  const store = createAdminStore(async (url) => {
+    if (url.endsWith('/login')) return json({ username: 'admin', role: 'admin', token: 'admin-token' });
+    if (url.endsWith('/block')) return json({ error: 'Không thể khóa tài khoản' }, 403);
+    return page('user-1');
+  }, 0, apiUrl, sessionStorageStub());
+  await store.getState().login('admin', 'password');
+  await assert.rejects(store.getState().changeStatus({ id: 'user-1', status: 'active' }), { status: 403 });
+  assert.equal(store.getState().listError, '');
+  assert.equal(store.getState().changing, false);
+  assert.equal(store.getState().result.rows[0].id, 'user-1');
 });
 
 test('401 của API tài khoản web độc lập xóa phiên và token', async () => {

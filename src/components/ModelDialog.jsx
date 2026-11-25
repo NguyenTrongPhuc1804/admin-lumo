@@ -23,6 +23,7 @@ export function ModelDialog({ dialog, model, busy, error, onClose, onSave, onDel
       baseUrl: data.get('baseUrl').trim(),
       apiKey: data.get('apiKey'),
       order: Number(data.get('order')),
+      coinPrice: Number(data.get('coinPrice')),
       enabled: data.has('enabled'),
     });
   }
@@ -38,6 +39,7 @@ export function ModelDialog({ dialog, model, busy, error, onClose, onSave, onDel
           <label className="grid gap-1">Base URL<input type="url" className="control" name="baseUrl" defaultValue={model?.baseUrl} placeholder="https://api.example.com/v1" /></label>
           <label className="grid gap-1">API key<input type="password" className="control" name="apiKey" autoComplete="new-password" placeholder={model ? 'Để trống để giữ khóa hiện tại' : 'Nhập API key'} aria-describedby={model ? 'model-key-help' : undefined} /></label>
           {model && <p id="model-key-help" className="text-xs text-muted">Khi đổi Base URL, có thể cần nhập khóa mới của nhà cung cấp.</p>}
+          <label className="grid gap-1">Xu mỗi lần gọi AI<input className="control" type="number" name="coinPrice" min="0" max="10000" step="1" defaultValue={model?.coinPrice ?? 0} required /><span className="text-xs text-muted">Đặt 0 để dùng hạn mức cơ bản.</span></label>
           <div className="flex flex-wrap items-end gap-4">
             <label className="grid gap-1">Thứ tự<input type="number" className="control w-24" name="order" defaultValue={model?.order ?? 0} required /></label>
             <label className="flex h-10 items-center gap-2"><input type="checkbox" className="accent-primary" name="enabled" defaultChecked={model?.enabled ?? true} /> Kích hoạt</label>

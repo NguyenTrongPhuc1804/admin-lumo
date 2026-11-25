@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { AccountTable } from '../components/AccountTable.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { WebAccountCreateButton } from '../components/WebAccountsSection.jsx';
 import { useAdminStore } from '../store/adminStore.mjs';
 import { roles, statuses } from '../utils/accounts.mjs';
 
-export function AccountsPage({ logoutError }) {
+export function AccountsPage() {
   const {
     session, filters, result, selected, update, toggleRows, reset, goToPage, loading, listError, load,
     changeStatus, changing, changeWebAdmin, changeWebAccountRole, resetWebAccountPassword, revokeWebAccount,
@@ -13,7 +14,6 @@ export function AccountsPage({ logoutError }) {
   const [permission, setPermission] = useState(null);
   const [permissionError, setPermissionError] = useState('');
   const [savingPermission, setSavingPermission] = useState(false);
-  const [createdEmail, setCreatedEmail] = useState('');
   const isOwner = session.role === 'owner';
   const isWebPermission = permission?.account.provider === 'web';
 
@@ -27,9 +27,9 @@ export function AccountsPage({ logoutError }) {
     setPermissionError('');
     setSavingPermission(true);
     try {
-      await changeWebAccountRole(account.id, role);
+      if (await changeWebAccountRole(account.id, role)) toast.success('Đã cập nhật vai trò tài khoản.');
     } catch (error) {
-      setPermissionError(error.message);
+      toast.error(error.message);
     } finally {
       setSavingPermission(false);
     }
@@ -44,10 +44,13 @@ export function AccountsPage({ logoutError }) {
     setPermissionError('');
     try {
       const { account, action } = permission;
-      if (!isWebPermission) await changeWebAdmin(account.id, action, password);
-      else if (action === 'revoke') await revokeWebAccount(account.id);
-      else await resetWebAccountPassword(account.id, password);
-      setPermission(null);
+      const result = !isWebPermission ? await changeWebAdmin(account.id, action, password)
+        : action === 'revoke' ? await revokeWebAccount(account.id)
+        : await resetWebAccountPassword(account.id, password);
+      if (result) {
+        toast.success({ grant: 'Đã cấp quyền web admin.', revoke: 'Đã thu hồi quyền truy cập web.', 'reset-password': 'Đã đặt lại mật khẩu.' }[action]);
+        setPermission(null);
+      }
     } catch (error) {
       setPermissionError(error.message);
     } finally {
@@ -56,9 +59,15 @@ export function AccountsPage({ logoutError }) {
     }
   }
 
-  function confirmStatus(account) {
+  async function confirmStatus(account) {
     const action = account.status === 'blocked' ? 'Mở khóa' : 'Khóa';
-    if (window.confirm(`${action} tài khoản ${account.name || account.email || account.id}?`)) changeStatus(account);
+    const name = account.name || account.email || account.id;
+    if (!window.confirm(`${action} tài khoản ${name}?`)) return;
+    try {
+      if (await changeStatus(account)) toast.success(`Đã ${action.toLowerCase()} tài khoản ${name}.`);
+    } catch (error) {
+      toast.error(error.message);
+    }
   }
 
   return (
@@ -71,11 +80,9 @@ export function AccountsPage({ logoutError }) {
         <div className="flex flex-wrap gap-2">
           <button className="soft-button" disabled><Icon name="tune" />Bộ lọc nâng cao</button>
           <button className="soft-button" disabled><Icon name="file_download" />Xuất CSV/Excel</button>
-          {isOwner && <WebAccountCreateButton disabled={changing || savingPermission || !!permission} onCreated={setCreatedEmail} />}
+          {isOwner && <WebAccountCreateButton disabled={changing || savingPermission || !!permission} />}
         </div>
       </section>
-      {createdEmail && <p role="status" className="rounded-xl bg-mint/40 p-3 text-primary">Đã thêm tài khoản <strong className="break-all">{createdEmail}</strong>. Nếu không thấy tài khoản, hãy kiểm tra bộ lọc đang áp dụng.</p>}
-      {isOwner && !permission && permissionError && <p role="alert" className="text-danger">{permissionError}</p>}
       {isOwner && permission && <form key={`${permission.account.id}:${permission.action}`} onSubmit={submitPermission} className="grid gap-2 rounded-xl bg-white p-4 shadow-sm">
         <h2 className="font-semibold break-all">{permission.action === 'grant' ? 'Cấp quyền web admin' : permission.action === 'revoke' ? (isWebPermission ? 'Thu hồi quyền truy cập web' : 'Thu hồi quyền web admin') : 'Đặt lại mật khẩu'}: {permission.account.webAdminLoginEmail || permission.account.email}</h2>
         {permission.action === 'revoke' ? <p>{isWebPermission ? 'Tài khoản này sẽ không thể đăng nhập web nữa và các phiên hiện tại sẽ hết hiệu lực.' : 'Phiên web admin hiện tại của tài khoản này sẽ hết hiệu lực.'}</p> : (
@@ -87,7 +94,6 @@ export function AccountsPage({ logoutError }) {
           <button className="soft-button" type="button" disabled={savingPermission} onClick={() => { setPermission(null); setPermissionError(''); }}>Hủy</button>
         </div>
       </form>}
-      {logoutError && <p role="alert" className="text-danger">{logoutError}</p>}
       <section aria-label="Lọc tài khoản" className="flex flex-wrap gap-2 rounded-xl bg-white p-3 shadow-sm">
         <label className="relative min-w-0 basis-full lg:flex-1">
           <span className="sr-only">Tìm tài khoản</span>

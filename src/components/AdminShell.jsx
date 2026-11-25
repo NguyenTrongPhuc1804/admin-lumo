@@ -3,11 +3,11 @@ import { Icon } from './Icon.jsx';
 
 const navigation = [
   ['grid_view', 'Dashboard Tổng quan'], ['manage_accounts', 'Quản lý Tài khoản', 'accounts'],
-  ['neurology', 'Quản lý Model AI', 'models'], ['loyalty', 'Gói & Lượt miễn phí'],
+  ['neurology', 'Quản lý Model AI', 'models'], ['loyalty', 'Gói & Lượt miễn phí', 'quotas'],
   ['terminal', 'Nhật ký Hệ thống'], ['tune', 'Cấu hình Hệ thống'],
 ];
 
-export function AdminShell({ children, username, onLogout, page, canViewModels }) {
+export function AdminShell({ children, username, onLogout, page, canViewSettings }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="min-h-screen lg:pl-72">
@@ -21,7 +21,7 @@ export function AdminShell({ children, username, onLogout, page, canViewModels }
         <p className="mt-2 mb-1 px-5 text-[10px] font-bold tracking-wider text-muted uppercase">Hạ tầng &amp; Vận hành</p>
         <nav aria-label="Quản trị" className="grid gap-1 px-3">
           {navigation.map(([icon, label, route]) => {
-            if (route === 'models' && !canViewModels) return null;
+            if ((route === 'models' || route === 'quotas') && !canViewSettings) return null;
             if (!route) return <span key={icon} aria-disabled="true" title="Chưa khả dụng trong bản demo" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted"><Icon name={icon} />{label}</span>;
             const active = route === page;
             return (

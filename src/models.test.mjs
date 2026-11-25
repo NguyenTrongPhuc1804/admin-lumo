@@ -25,6 +25,16 @@ async function signIn(role, respond) {
   return { store, calls, entries };
 }
 
+test('chính sách hạn mức: chỉ owner ghi, admin chỉ đọc, viewer không gọi API', async () => {
+  const policy = { guestLimit: 3, freeLimit: 100 };
+  for (const role of ['owner', 'admin', 'viewer']) {
+    const { store, calls } = await signIn(role, () => json(policy));
+    await store.getState().getQuotaPolicy();
+    await store.getState().saveQuotaPolicy(policy);
+    assert.deepEqual(calls.map(([method, path]) => `${method} ${path}`), role === 'viewer' ? [] : role === 'admin' ? ['GET /quota-policy'] : ['GET /quota-policy', 'PUT /quota-policy']);
+  }
+});
+
 test('owner dùng các endpoint Models với Bearer, không gửi lại khóa đã che', async () => {
   const { store, calls } = await signIn('owner', (path, method) => {
     if (method === 'GET') return json([model]);
@@ -80,10 +90,43 @@ test('điều hướng, thẻ model và hộp thoại hiển thị theo quyền'
   });
   try {
     const { AdminShell } = await vite.ssrLoadModule('/src/components/AdminShell.jsx');
-    const render = (page, canViewModels) => renderToStaticMarkup(createElement(AdminShell, { page, canViewModels }));
+    const render = (page, canViewSettings) => renderToStaticMarkup(createElement(AdminShell, { page, canViewSettings }));
+    assert.match(render('quotas', true), /href="#quotas" aria-current="page"/);
+    assert.doesNotMatch(render('accounts', false), /href="#quotas"/);
+    const { QuotaAudit } = await vite.ssrLoadModule('/src/pages/QuotaPolicyPage.jsx');
+    const audit = renderToStaticMarkup(createElement(QuotaAudit, { items: [{ updatedBy: 'owner-test', updatedAt: '2026-11-21T13:00:00Z', changes: [{ field: 'guestLimit', before: 3, after: 5 }] }] }));
+    assert.match(audit, /owner-test/);
+    assert.match(audit, /3 → 5/);
     assert.match(render('models', true), /href="#models" aria-current="page"/);
     assert.match(render('accounts', true), /href="#accounts" aria-current="page"/);
     assert.doesNotMatch(render('accounts', false), /Quản lý Model AI|href="#models"/);
+    const { QuotaPolicyForm, QuotaOverview } = await vite.ssrLoadModule('/src/pages/QuotaPolicyPage.jsx');
+    const policy = { guestLimit: 3, freeLimit: 300 };
+    const referral = { reward: 3, maxClaims: 1, period: 'month' };
+    const renderBonus = (bonusDrafts, feedback) => renderToStaticMarkup(createElement(QuotaOverview, {
+      isOwner: true, bonus: { rules: { referral } }, bonusDrafts, feedback,
+    }));
+    const savedBonus = renderBonus({}, { key: 'referral', text: 'Đã lưu cấu hình · Chưa cấp lượt tự động' });
+    assert.match(savedBonus, /disabled="" aria-label="Lưu cấu hình Mã giới thiệu bạn bè"/);
+    assert.doesNotMatch(savedBonus, /Đã lưu cấu hình · Chưa cấp lượt tự động/);
+    const failedBonus = renderBonus({ referral: { ...referral, reward: '4' } }, { key: 'referral', message: 'Không lưu được cấu hình bonus' });
+    assert.doesNotMatch(failedBonus, /disabled="" aria-label="Lưu cấu hình Mã giới thiệu bạn bè"/);
+    assert.match(failedBonus, /role="alert"[^>]*>Không lưu được cấu hình bonus/);
+    for (const isOwner of [true, false]) {
+      const quotas = renderToStaticMarkup(createElement('div', null, createElement(QuotaPolicyForm, { isOwner, policy, draft: policy }), createElement(QuotaOverview, { isOwner, bonus: { rules: {} }, usage: { total: 0 } })));
+      assert.match(quotas, /Khách vãng lai/);
+      assert.match(quotas, /Free Registered/);
+      assert.match(quotas, /Pro Gamer/);
+      assert.match(quotas, /VIP &amp; Studio/);
+      assert.doesNotMatch(quotas, /Điểm danh hằng ngày/);
+      assert.match(quotas, /Mã giới thiệu bạn bè/);
+      assert.match(quotas, /Video tài trợ/);
+      assert.match(quotas, /Chưa có dữ liệu lượt gọi AI/);
+      assert.doesNotMatch(quotas, /14\.8M|38\.0%|Lưu thay đổi Quy tắc/);
+      assert.equal((quotas.match(/<input/g) || []).length, isOwner ? 8 : 0);
+      assert.equal((quotas.match(/role="switch"/g) || []).length, isOwner ? 2 : 0);
+      assert.equal((quotas.match(/aria-label="Lưu cấu hình/g) || []).length, isOwner ? 2 : 0);
+    }
     const { ModelCard } = await vite.ssrLoadModule('/src/components/ModelCard.jsx');
     const ownerCard = renderToStaticMarkup(createElement(ModelCard, { model, isOwner: true }));
     const adminCard = renderToStaticMarkup(createElement(ModelCard, { model, isOwner: false }));

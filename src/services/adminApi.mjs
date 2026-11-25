@@ -21,6 +21,12 @@ export function createAdminApi(request = fetch, apiUrl = import.meta.env?.VITE_B
     createWebAccount: (email, password, role, token) => api('/auth/accounts', { token, body: { email, password, role } }),
     changeWebAccount: (id, action, body, token) => api(`/auth/accounts/${encodeURIComponent(id)}/${action}`, { token, body }),
     logout: (token) => api('/auth/logout', { token, body: {} }),
+    getBonusRules: (token) => api('/bonus-rules', { token }),
+    saveBonusRule: (rule, body, token) => api(`/bonus-rules/${encodeURIComponent(rule)}`, { token, body, method: 'PATCH' }),
+    getQuotaAudit: (token) => api('/quota-policy/audit', { token }),
+    getQuotaUsage: (token) => api('/quota-usage', { token }),
+    getQuotaPolicy: (token) => api('/quota-policy', { token }),
+    saveQuotaPolicy: (body, token) => api('/quota-policy', { token, body, method: 'PUT' }),
     listModels: (token) => api('/models', { token }),
     saveModel: (id, body, token) => id == null
       ? api('/models', { token, body, method: 'POST' })

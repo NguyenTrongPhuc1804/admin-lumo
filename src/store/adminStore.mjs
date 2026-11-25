@@ -75,7 +75,7 @@ export function createAdminStore(request = fetch, wait = 300, apiUrl = import.me
       }
     }
 
-    async function modelRequest(send, ownerOnly = true) {
+    async function settingsRequest(send, ownerOnly = true) {
       const { session } = get();
       if (!session || session.mustChangePassword || (session.role !== 'owner' && (ownerOnly || session.role !== 'admin'))) return;
       try {
@@ -142,15 +142,33 @@ export function createAdminStore(request = fetch, wait = 300, apiUrl = import.me
           throw error;
         }
       },
+      getBonusRules() {
+        return settingsRequest((token) => adminApi.getBonusRules(token), false);
+      },
+      saveBonusRule(rule, fields) {
+        return settingsRequest((token) => adminApi.saveBonusRule(rule, fields, token));
+      },
+      getQuotaAudit() {
+        return settingsRequest((token) => adminApi.getQuotaAudit(token), false);
+      },
+      getQuotaUsage() {
+        return settingsRequest((token) => adminApi.getQuotaUsage(token), false);
+      },
+      getQuotaPolicy() {
+        return settingsRequest((token) => adminApi.getQuotaPolicy(token), false);
+      },
+      saveQuotaPolicy(policy) {
+        return settingsRequest((token) => adminApi.saveQuotaPolicy(policy, token));
+      },
       listModels() {
-        return modelRequest(async (token, role) => {
+        return settingsRequest(async (token, role) => {
           const models = await adminApi.listModels(token);
           if (!Array.isArray(models)) throw new Error('Danh sách model không hợp lệ');
           return role === 'owner' ? models : models.map(({ apiKey: _key, ...model }) => model);
         }, false);
       },
       saveModel(id, { apiKey, ...fields }) {
-        return modelRequest(async (token) => {
+        return settingsRequest(async (token) => {
           const key = apiKey?.trim();
           const data = await adminApi.saveModel(id, key ? { ...fields, apiKey: key } : fields, token);
           if (!data.ok || !data.model) throw new Error('Không lưu được model');
@@ -158,14 +176,14 @@ export function createAdminStore(request = fetch, wait = 300, apiUrl = import.me
         });
       },
       deleteModel(id) {
-        return modelRequest(async (token) => {
+        return settingsRequest(async (token) => {
           const data = await adminApi.deleteModel(id, token);
           if (!data.ok) throw new Error('Không xóa được model');
           return data;
         });
       },
       verifyModel({ id, code, baseUrl }) {
-        return modelRequest(async (token) => {
+        return settingsRequest(async (token) => {
           const data = await adminApi.verifyModel({ id, model: code, baseUrl }, token);
           if (!data.ok) throw new Error('Không kết nối được model');
           return data;
@@ -195,15 +213,17 @@ export function createAdminStore(request = fetch, wait = 300, apiUrl = import.me
       async changeStatus(account) {
         const { session, changing } = get();
         if (changing || account.provider === 'web' || !canChangeUsers()) return;
-        set({ changing: true, listError: '' });
+        set({ changing: true });
         try {
           const action = account.status === 'blocked' ? 'unblock' : 'block';
           await adminApi.changeUserStatus(account.id, action, session.token);
-          if (get().session === session) return await load();
+          if (get().session !== session) return;
+          await load();
+          return get().session === session;
         } catch (error) {
           if (get().session !== session) return;
           if (error.status === 401) clearSession();
-          else set({ listError: error.message });
+          throw error;
         } finally {
           if (get().session === session) set({ changing: false });
         }

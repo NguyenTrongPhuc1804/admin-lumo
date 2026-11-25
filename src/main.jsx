@@ -1,5 +1,9 @@
 import { createRoot } from 'react-dom/client';
+import { Toaster } from 'sonner';
 import { App } from './App.jsx';
 import './index.css';
 
-createRoot(document.getElementById('root')).render(<App />);
+createRoot(document.getElementById('root')).render(<>
+  <App />
+  <Toaster position="top-right" richColors closeButton toastOptions={{ closeButtonAriaLabel: 'Đóng thông báo' }} containerAriaLabel="Thông báo" />
+</>);

@@ -18,6 +18,7 @@ export function ModelCard({ model, isOwner, busy, connection, onToggle, onVerify
           <span className={`text-[11px] font-semibold ${model.enabled ? 'text-primary' : 'text-muted'}`}>{model.enabled ? 'Đang bật' : 'Đã tắt'}</span>
         </div>
       </div>
+      <p className="text-sm text-muted">{model.coinPrice > 0 ? `${model.coinPrice} xu / lần gọi AI` : 'Dùng hạn mức cơ bản'}</p>
       {model.description && <p className="whitespace-pre-line break-words text-muted">{model.description}</p>}
       <dl className="mt-auto grid gap-2">
         <div className="flex min-w-0 items-start gap-2 rounded-lg bg-panel px-3 py-2">

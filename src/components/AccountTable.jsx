@@ -32,6 +32,7 @@ function AccountRow({ account, checked, onChange, onChangeStatus, changing, canC
       <td className="min-w-48 px-3 py-3">
         {isWeb ? '—' : <>
           <div className="flex justify-between gap-2 font-mono text-[11px] font-semibold"><span>{account.role === 'admin' ? 'Không giới hạn' : `${number.format(account.usageCount)} / ${number.format(account.dailyLimit)}`}</span><span className={percent >= 100 ? 'text-danger' : 'text-primary'}>{account.plan || '—'}</span></div>
+          {account.proExpiresAt && <div className="text-xs text-muted">Pro đến {date.format(new Date(account.proExpiresAt))}</div>}
           {account.role !== 'admin' && <div aria-hidden="true" className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line"><div style={{ width: `${Math.min(100, percent)}%` }} className={`h-full rounded-full ${percent >= 100 ? 'bg-danger' : 'bg-primary'}`} /></div>}
         </>}
       </td>
